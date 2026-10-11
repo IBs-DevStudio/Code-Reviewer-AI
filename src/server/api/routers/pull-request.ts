@@ -4,6 +4,7 @@ import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import {
   fetchPullRequests,
   fetchPullRequest,
+  fetchPullRequestFiles,
   getGitHubAccessToken,
 } from "@/server/services/github";
 
@@ -127,5 +128,59 @@ export const pullRequestRouter = createTRPCRouter({
       });
 
       return { ...pr, review };
+    }),
+
+  files: protectedProcedure
+    .input(
+      z.object({
+        repositoryId: z.string(),
+        prNumber: z.number(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const repository = await ctx.db.repository.findUnique({
+        where: { id: input.repositoryId, userId: ctx.user.id },
+      });
+
+      if (!repository) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Repository not found",
+        });
+      }
+
+      const accessToken = await getGitHubAccessToken(ctx.user.id);
+      if (!accessToken) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "GitHub account is not connected",
+        });
+      }
+
+      const [owner, repo] = repository.fullName.split("/");
+      if (!owner || !repo) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Invalid repository name",
+        });
+      }
+
+      const files = await fetchPullRequestFiles(
+        accessToken,
+        owner,
+        repo,
+        input.prNumber,
+      );
+
+      return files.map((f) => ({
+        sha: f.sha,
+        filename: f.filename,
+        status: f.status,
+        additions: f.additions,
+        deletions: f.deletions,
+        changes: f.changes,
+        patch: f.patch,
+        previousFilename: f.previous_filename,
+      }));
     }),
 });

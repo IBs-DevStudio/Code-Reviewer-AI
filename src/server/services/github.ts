@@ -121,3 +121,56 @@ export async function fetchPullRequest(
 
   return res.json();
 }
+
+export interface GitHubPullRequestFile {
+  sha: string;
+  filename: string;
+  status:
+    | "added"
+    | "removed"
+    | "modified"
+    | "renamed"
+    | "copied"
+    | "changed"
+    | "unchanged";
+  additions: number;
+  deletions: number;
+  changes: number;
+  patch?: string;
+  previous_filename?: string;
+}
+
+export async function fetchPullRequestFiles(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  pullNumber: number,
+): Promise<GitHubPullRequestFile[]> {
+  let files: GitHubPullRequestFile[] = [];
+  let page = 1;
+  const perPage = 100;
+
+  while (true) {
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/pulls/${pullNumber}/files?per_page=${perPage}&page=${page}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/vnd.github.v3+json",
+        },
+      },
+    );
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch pull request files: ${res.statusText}`);
+    }
+
+    const data: GitHubPullRequestFile[] = await res.json();
+    files = files.concat(data);
+
+    if (data.length < perPage) break;
+    page++;
+  }
+
+  return files;
+}
