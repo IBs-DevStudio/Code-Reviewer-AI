@@ -1,8 +1,10 @@
 import { createTRPCRouter, publicProcedure, createCallerFactory } from "./trpc";
 import { repositoryRouter } from "@/server/api/routers/repository";
+import { pullRequestRouter } from "@/server/api/routers/pull-request";
 
 export const appRouter = createTRPCRouter({
   repository: repositoryRouter,
+  pullRequest: pullRequestRouter,
   health: publicProcedure.query(() => {
     return {
       status: "ok",
