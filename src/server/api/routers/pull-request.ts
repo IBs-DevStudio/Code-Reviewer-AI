@@ -14,11 +14,14 @@ export const pullRequestRouter = createTRPCRouter({
       z.object({
         repositoryId: z.string(),
         state: z.enum(["open", "closed", "all"]).default("open"),
-      }),
+      })
     )
     .query(async ({ ctx, input }) => {
       const repository = await ctx.db.repository.findUnique({
-        where: { id: input.repositoryId, userId: ctx.user.id },
+        where: {
+          id: input.repositoryId,
+          userId: ctx.user.id,
+        },
       });
 
       if (!repository) {
@@ -48,19 +51,30 @@ export const pullRequestRouter = createTRPCRouter({
         accessToken,
         owner,
         repo,
-        input.state,
+        input.state
       );
 
+      // Check existing reviews in database
       const existingReviews = await ctx.db.review.findMany({
         where: {
           repositoryId: repository.id,
-          prNumber: { in: pullRequests.map((p) => p.number) },
+          prNumber: {
+            in: pullRequests.map((pr) => pr.number),
+          },
         },
-        select: { prNumber: true, status: true, createdAt: true },
-        orderBy: { createdAt: "desc" },
+        select: {
+          prNumber: true,
+          status: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
       });
 
-      const reviewMap = new Map(existingReviews.map((r) => [r.prNumber, r]));
+      const reviewMap = new Map(
+        existingReviews.map((review) => [review.prNumber, review])
+      );
 
       return pullRequests.map((pr) => ({
         id: pr.id,
@@ -73,9 +87,9 @@ export const pullRequestRouter = createTRPCRouter({
         user: pr.user,
         head: pr.head.ref,
         base: pr.base.ref,
-        additions: pr.additions ?? 0,
-        deletions: pr.deletions ?? 0,
-        changedFiles: pr.changed_files ?? 0,
+        additions: pr.additions,
+        deletions: pr.deletions,
+        changedFiles: pr.changed_files,
         review: reviewMap.get(pr.number) ?? null,
       }));
     }),
@@ -85,11 +99,14 @@ export const pullRequestRouter = createTRPCRouter({
       z.object({
         repositoryId: z.string(),
         prNumber: z.number(),
-      }),
+      })
     )
     .query(async ({ ctx, input }) => {
       const repository = await ctx.db.repository.findUnique({
-        where: { id: input.repositoryId, userId: ctx.user.id },
+        where: {
+          id: input.repositoryId,
+          userId: ctx.user.id,
+        },
       });
 
       if (!repository) {
@@ -108,26 +125,39 @@ export const pullRequestRouter = createTRPCRouter({
       }
 
       const [owner, repo] = repository.fullName.split("/");
-      if (!owner || !repo) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Invalid repository name",
-        });
-      }
-
       const pr = await fetchPullRequest(
         accessToken,
         owner,
         repo,
-        input.prNumber,
+        input.prNumber
       );
 
       const review = await ctx.db.review.findFirst({
-        where: { repositoryId: repository.id, prNumber: input.prNumber },
-        orderBy: { createdAt: "desc" },
+        where: {
+          repositoryId: repository.id,
+          prNumber: input.prNumber,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
       });
 
-      return { ...pr, review };
+      return {
+        id: pr.id,
+        number: pr.number,
+        title: pr.title,
+        state: pr.state,
+        draft: pr.draft,
+        htmlUrl: pr.html_url,
+        createdAt: pr.created_at,
+        user: pr.user,
+        head: pr.head,
+        base: pr.base,
+        additions: pr.additions,
+        deletions: pr.deletions,
+        changedFiles: pr.changed_files,
+        review: review ?? null,
+      };
     }),
 
   files: protectedProcedure
@@ -135,11 +165,14 @@ export const pullRequestRouter = createTRPCRouter({
       z.object({
         repositoryId: z.string(),
         prNumber: z.number(),
-      }),
+      })
     )
     .query(async ({ ctx, input }) => {
       const repository = await ctx.db.repository.findUnique({
-        where: { id: input.repositoryId, userId: ctx.user.id },
+        where: {
+          id: input.repositoryId,
+          userId: ctx.user.id,
+        },
       });
 
       if (!repository) {
@@ -158,29 +191,22 @@ export const pullRequestRouter = createTRPCRouter({
       }
 
       const [owner, repo] = repository.fullName.split("/");
-      if (!owner || !repo) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Invalid repository name",
-        });
-      }
-
       const files = await fetchPullRequestFiles(
         accessToken,
         owner,
         repo,
-        input.prNumber,
+        input.prNumber
       );
 
-      return files.map((f) => ({
-        sha: f.sha,
-        filename: f.filename,
-        status: f.status,
-        additions: f.additions,
-        deletions: f.deletions,
-        changes: f.changes,
-        patch: f.patch,
-        previousFilename: f.previous_filename,
+      return files.map((file) => ({
+        sha: file.sha,
+        filename: file.filename,
+        status: file.status,
+        additions: file.additions,
+        deletions: file.deletions,
+        changes: file.changes,
+        patch: file.patch,
+        previousFilename: file.previous_filename,
       }));
     }),
 });
