@@ -21,9 +21,21 @@ import {
   GitBranch,
   ArrowRight,
   Sparkles,
+  Wand2,
+  Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import { DiffViewer } from "@/components/diff-viewer";
+
+type ReviewComment = {
+  file: string;
+  line: number;
+  severity: string;
+  category: string;
+  message: string;
+  suggestion?: string;
+};
 
 export default function PRDetailsPage({
   params,
@@ -43,6 +55,31 @@ export default function PRDetailsPage({
     { repositoryId: id, prNumber: num },
     { enabled: !isNaN(num) },
   );
+
+  // Latest review, polled every 2s while the background job is running
+  const { data: latestReview, refetch: refetchReview } =
+    trpc.review.getLatestForPR.useQuery(
+      { repositoryId: id, prNumber: num },
+      {
+        enabled: !isNaN(num),
+        refetchInterval: (query) =>
+          query.state.data?.status === "PROCESSING" ||
+          query.state.data?.status === "PENDING"
+            ? 2000
+            : false,
+      },
+    );
+
+  // Trigger the Inngest job
+  const triggerReview = trpc.review.trigger.useMutation({
+    onSuccess: () => {
+      void refetchReview();
+      setActiveTab("review");
+    },
+  });
+
+  const isReviewing =
+    latestReview?.status === "PENDING" || latestReview?.status === "PROCESSING";
 
   if (prQuery.isLoading) {
     return (
@@ -142,23 +179,44 @@ export default function PRDetailsPage({
                 <span>•</span>
                 <div className="flex items-center gap-1">
                   <Clock className="size-3.5" />
-                  <span>{formatDate(pr.created_at)}</span>
+                  <span>{formatDate(pr.createdAt)}</span>
                 </div>
               </div>
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              nativeButton={false}
-              render={
-                <a href={pr.html_url} target="_blank" rel="noreferrer" />
-              }
-            >
-              <span>GitHub</span>
-              <ExternalLink className="size-3.5" />
-            </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                size="sm"
+                disabled={isReviewing || triggerReview.isPending}
+                onClick={() =>
+                  triggerReview.mutate({ repositoryId: id, prNumber: num })
+                }
+              >
+                {isReviewing ? (
+                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                ) : (
+                  <Wand2 className="mr-1.5 size-3.5" />
+                )}
+                {isReviewing
+                  ? "Analyzing..."
+                  : latestReview?.status === "COMPLETED"
+                    ? "Re-review"
+                    : "AI Review"}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                nativeButton={false}
+                render={
+                  <a href={pr.htmlUrl} target="_blank" rel="noreferrer" />
+                }
+              >
+                <span>GitHub</span>
+                <ExternalLink className="size-3.5" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -209,7 +267,7 @@ export default function PRDetailsPage({
                   <FileCode2 className="size-3.5" />
                 </div>
                 <span className="text-sm font-semibold tabular-nums">
-                  {pr.changed_files ?? 0}
+                  {pr.changedFiles ?? 0}
                 </span>
               </div>
             </div>
@@ -251,6 +309,13 @@ export default function PRDetailsPage({
         >
           <Sparkles className="size-4" />
           <span>AI Review</span>
+          {latestReview?.status === "COMPLETED" && (
+            <Badge variant="secondary" className="px-1.5 py-0.5 text-xs">
+              {Array.isArray(latestReview.comments)
+                ? latestReview.comments.length
+                : 0}
+            </Badge>
+          )}
           {activeTab === "review" && (
             <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
           )}
@@ -285,16 +350,79 @@ export default function PRDetailsPage({
       )}
 
       {activeTab === "review" && (
-        <Card className="py-16 text-center">
-          <CardContent>
-            <Sparkles className="mx-auto mb-4 size-12 text-muted-foreground" />
-            <p className="font-medium">AI Code Review</p>
-            <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-              Background job processing and AI analysis will be connected in
-              the next chapter.
-            </p>
-          </CardContent>
-        </Card>
+        <div>
+          {!latestReview ? (
+            <Card className="py-16 text-center">
+              <CardContent>
+                <Sparkles className="mx-auto mb-4 size-12 text-muted-foreground" />
+                <p className="font-medium">No review yet</p>
+                <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+                  Click &quot;AI Review&quot; to analyze this pull request.
+                </p>
+              </CardContent>
+            </Card>
+          ) : isReviewing ? (
+            <Card className="py-16 text-center">
+              <CardContent>
+                <Loader2 className="mx-auto mb-4 size-10 animate-spin text-muted-foreground" />
+                <p className="font-medium">Analyzing pull request...</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Running in the background. This page updates automatically.
+                </p>
+              </CardContent>
+            </Card>
+          ) : latestReview.status === "FAILED" ? (
+            <Card className="border-destructive/50 py-12 text-center">
+              <CardContent>
+                <AlertTriangle className="mx-auto size-8 text-destructive" />
+                <p className="mt-2 font-medium text-destructive">
+                  Review failed
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {latestReview.error ?? "Unknown error"}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              <Card>
+                <CardContent className="space-y-2 p-5">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium">Summary</p>
+                    <Badge variant="secondary">
+                      Risk score: {latestReview.riskScore ?? 0}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {latestReview.summary}
+                  </p>
+                </CardContent>
+              </Card>
+
+              {((latestReview.comments as ReviewComment[] | null) ?? []).map(
+                (c, i) => (
+                  <Card key={i}>
+                    <CardContent className="space-y-2 p-5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline">{c.severity}</Badge>
+                        <Badge variant="secondary">{c.category}</Badge>
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {c.file}:{c.line}
+                        </span>
+                      </div>
+                      <p className="text-sm">{c.message}</p>
+                      {c.suggestion && (
+                        <p className="text-sm text-muted-foreground">
+                          Suggestion: {c.suggestion}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ),
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
