@@ -14,6 +14,7 @@ import {
   RefreshCw,
   GitPullRequest,
   GitMerge,
+  GitBranch,
   XCircle,
   Clock,
   Plus,
@@ -21,6 +22,8 @@ import {
   FileText,
   Lock,
   Globe,
+  CheckCircle,
+  Loader2,
 } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 
@@ -33,6 +36,7 @@ interface PRItem {
   state: string;
   draft: boolean;
   createdAt: string;
+  mergedAt?: string | null; // add this to your tRPC router output if available
   user: { login: string; avatar_url: string };
   head: string;
   base: string;
@@ -53,10 +57,29 @@ export default function RepoDetailsPage({
   const reposQuery = trpc.repository.list.useQuery();
   const repo = reposQuery.data?.find((r) => r.id === id);
 
-  const prQuery = trpc.pullRequest.list.useQuery({
+  // Fetch each state separately so tab counts are always accurate.
+  // react-query caches each query, so switching tabs is instant.
+  const openPRs = trpc.pullRequest.list.useQuery({
     repositoryId: id,
-    state: prState,
+    state: "open",
   });
+  const closedPRs = trpc.pullRequest.list.useQuery({
+    repositoryId: id,
+    state: "closed",
+  });
+  const allPRs = trpc.pullRequest.list.useQuery({
+    repositoryId: id,
+    state: "all",
+  });
+
+  const prQuery =
+    prState === "open" ? openPRs : prState === "closed" ? closedPRs : allPRs;
+
+  const prCounts = {
+    open: openPRs.data?.length ?? 0,
+    closed: closedPRs.data?.length ?? 0,
+    all: allPRs.data?.length ?? 0,
+  };
 
   if (reposQuery.isLoading) {
     return (
@@ -85,7 +108,7 @@ export default function RepoDetailsPage({
           <Button
             variant="outline"
             className="mt-4"
-             nativeButton={false}
+            nativeButton={false}
             render={<Link href="/repos" />}
           >
             <ArrowLeft className="mr-2 size-4" />
@@ -104,7 +127,7 @@ export default function RepoDetailsPage({
           <Button
             variant="outline"
             size="icon"
-             nativeButton={false}
+            nativeButton={false}
             className="shrink-0"
             render={<Link href="/repos" />}
           >
@@ -140,15 +163,15 @@ export default function RepoDetailsPage({
         </div>
 
         <Button
-  variant="ghost"
-  size="icon"
-  onClick={() => prQuery.refetch()}
-  disabled={prQuery.isFetching}
->
-  <RefreshCw
-    className={cn("size-4", prQuery.isFetching && "animate-spin")}
-  />
-</Button>
+          variant="ghost"
+          size="icon"
+          onClick={() => prQuery.refetch()}
+          disabled={prQuery.isFetching}
+        >
+          <RefreshCw
+            className={cn("size-4", prQuery.isFetching && "animate-spin")}
+          />
+        </Button>
       </div>
 
       {/* Tabs */}
@@ -174,7 +197,20 @@ export default function RepoDetailsPage({
                   {state === "closed" && (
                     <GitMerge className="size-4 text-purple-500" />
                   )}
+                  {state === "all" && (
+                    <GitBranch className="size-4 text-muted-foreground" />
+                  )}
                   {state}
+                  <span
+                    className={cn(
+                      "rounded-md px-1.5 py-0.5 text-xs tabular-nums",
+                      isActive
+                        ? "bg-foreground/10 text-foreground"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {prCounts[state]}
+                  </span>
                 </span>
                 {isActive && (
                   <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
@@ -229,6 +265,7 @@ function PRCard({
   pr: PRItem;
   repositoryId: string;
 }) {
+  const isMerged = pr.state === "closed" && pr.mergedAt != null;
   const isClosed = pr.state === "closed";
   const prHref = `/repos/${repositoryId}/pr/${pr.number}`;
 
@@ -237,8 +274,10 @@ function PRCard({
       <CardContent className="flex items-start justify-between gap-6 p-5">
         <div className="flex min-w-0 flex-1 items-start gap-4">
           <div className="mt-1">
-            {isClosed ? (
+            {isMerged ? (
               <GitMerge className="size-4 text-purple-500" />
+            ) : isClosed ? (
+              <XCircle className="size-4 text-red-500" />
             ) : (
               <GitPullRequest className="size-4 text-emerald-500" />
             )}
@@ -259,7 +298,7 @@ function PRCard({
               <span className="font-mono text-xs">#{pr.number}</span>
               <span>•</span>
               <div className="flex items-center gap-1.5">
-                <Avatar className="size-4 ring-1 ring-border">
+                <Avatar className="size-4 ring-1 ring-ring">
                   <AvatarImage src={pr.user.avatar_url} />
                   <AvatarFallback className="text-[10px]">
                     {pr.user.login[0]?.toUpperCase()}
@@ -297,10 +336,11 @@ function PRCard({
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
+          {pr.review && <ReviewStatusBadge status={pr.review.status} />}
           <Button
             variant={pr.review ? "outline" : "default"}
             size="sm"
-             nativeButton={false}
+            nativeButton={false}
             render={<Link href={prHref} />}
           >
             {pr.review ? "View Review" : "Review"}
@@ -308,5 +348,48 @@ function PRCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function ReviewStatusBadge({ status }: { status: string }) {
+  const config = {
+    COMPLETED: {
+      icon: CheckCircle,
+      label: "Reviewed",
+      className:
+        "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+    },
+    PROCESSING: {
+      icon: Loader2,
+      label: "Analyzing",
+      className:
+        "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+      spin: true,
+    },
+    PENDING: {
+      icon: Clock,
+      label: "Queued",
+      className:
+        "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+    },
+    FAILED: {
+      icon: XCircle,
+      label: "Failed",
+      className:
+        "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20",
+    },
+  }[status] ?? {
+    icon: Clock,
+    label: "Pending",
+    className: "bg-muted text-muted-foreground",
+  };
+
+  const Icon = config.icon;
+
+  return (
+    <Badge className={config.className}>
+      <Icon className={cn("size-3", config.spin && "animate-spin")} />
+      {config.label}
+    </Badge>
   );
 }

@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ReviewResult } from "@/components/review-result";
 import {
   ArrowLeft,
   ExternalLink,
@@ -21,6 +22,8 @@ import {
   GitBranch,
   ArrowRight,
   Sparkles,
+  Wand2,
+  Loader2,
 } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import { DiffViewer } from "@/components/diff-viewer";
@@ -32,7 +35,7 @@ export default function PRDetailsPage({
 }) {
   const { id, prNumber } = use(params);
   const num = parseInt(prNumber, 10);
-  const [activeTab, setActiveTab] = useState<"files" | "review">("files");
+  const [activeTab, setActiveTab] = useState<"files" | "review">("review");
 
   const prQuery = trpc.pullRequest.get.useQuery(
     { repositoryId: id, prNumber: num },
@@ -43,6 +46,33 @@ export default function PRDetailsPage({
     { repositoryId: id, prNumber: num },
     { enabled: !isNaN(num) },
   );
+
+  // Latest review, polled every 2s while the background job is running
+  const { data: latestReview, refetch: refetchReview } =
+    trpc.review.getLatestForPR.useQuery(
+      { repositoryId: id, prNumber: num },
+      {
+        enabled: !isNaN(num),
+        refetchInterval: (query) =>
+          query.state.data?.status === "PROCESSING" ||
+          query.state.data?.status === "PENDING"
+            ? 2000
+            : false,
+      },
+    );
+
+  const triggerReview = trpc.review.trigger.useMutation({
+    onSuccess: () => {
+      void refetchReview();
+      setActiveTab("review");
+    },
+  });
+
+  const runReview = () =>
+    triggerReview.mutate({ repositoryId: id, prNumber: num });
+
+  const isReviewing =
+    latestReview?.status === "PENDING" || latestReview?.status === "PROCESSING";
 
   if (prQuery.isLoading) {
     return (
@@ -142,23 +172,42 @@ export default function PRDetailsPage({
                 <span>•</span>
                 <div className="flex items-center gap-1">
                   <Clock className="size-3.5" />
-                  <span>{formatDate(pr.created_at)}</span>
+                  <span>{formatDate(pr.createdAt)}</span>
                 </div>
               </div>
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              nativeButton={false}
-              render={
-                <a href={pr.html_url} target="_blank" rel="noreferrer" />
-              }
-            >
-              <span>GitHub</span>
-              <ExternalLink className="size-3.5" />
-            </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                size="sm"
+                disabled={isReviewing || triggerReview.isPending}
+                onClick={runReview}
+              >
+                {isReviewing ? (
+                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                ) : (
+                  <Wand2 className="mr-1.5 size-3.5" />
+                )}
+                {isReviewing
+                  ? "Analyzing..."
+                  : latestReview?.status === "COMPLETED"
+                    ? "Re-review"
+                    : "AI Review"}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                nativeButton={false}
+                render={
+                  <a href={pr.htmlUrl} target="_blank" rel="noreferrer" />
+                }
+              >
+                <span>GitHub</span>
+                <ExternalLink className="size-3.5" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -209,7 +258,7 @@ export default function PRDetailsPage({
                   <FileCode2 className="size-3.5" />
                 </div>
                 <span className="text-sm font-semibold tabular-nums">
-                  {pr.changed_files ?? 0}
+                  {pr.changedFiles ?? 0}
                 </span>
               </div>
             </div>
@@ -219,6 +268,29 @@ export default function PRDetailsPage({
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-border/60">
+        <button
+          onClick={() => setActiveTab("review")}
+          className={cn(
+            "relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors",
+            activeTab === "review"
+              ? "text-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Sparkles className="size-4" />
+          <span>AI Review</span>
+          {latestReview?.status === "COMPLETED" && (
+            <Badge variant="secondary" className="px-1.5 py-0.5 text-xs">
+              {Array.isArray(latestReview.comments)
+                ? latestReview.comments.length
+                : 0}
+            </Badge>
+          )}
+          {activeTab === "review" && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+          )}
+        </button>
+
         <button
           onClick={() => setActiveTab("files")}
           className={cn(
@@ -239,25 +311,39 @@ export default function PRDetailsPage({
             <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
           )}
         </button>
-
-        <button
-          onClick={() => setActiveTab("review")}
-          className={cn(
-            "relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors",
-            activeTab === "review"
-              ? "text-foreground"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <Sparkles className="size-4" />
-          <span>AI Review</span>
-          {activeTab === "review" && (
-            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-          )}
-        </button>
       </div>
 
       {/* Tab content */}
+      {activeTab === "review" && (
+        <div>
+          {latestReview ? (
+            <ReviewResult
+              review={latestReview}
+              onRetry={runReview}
+              isRetrying={triggerReview.isPending}
+            />
+          ) : (
+            <Card className="py-16 text-center">
+              <CardContent>
+                <Sparkles className="mx-auto mb-4 size-12 text-muted-foreground" />
+                <p className="font-medium">No review yet</p>
+                <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+                  Click &quot;Run AI Review&quot; to analyze this pull request
+                  for bugs, security issues, and improvements.
+                </p>
+                <Button
+                  className="mt-6"
+                  onClick={runReview}
+                  disabled={triggerReview.isPending}
+                >
+                  Run AI Review
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
       {activeTab === "files" && (
         <div>
           {filesQuery.isLoading ? (
@@ -282,19 +368,6 @@ export default function PRDetailsPage({
             <DiffViewer files={filesQuery.data ?? []} />
           )}
         </div>
-      )}
-
-      {activeTab === "review" && (
-        <Card className="py-16 text-center">
-          <CardContent>
-            <Sparkles className="mx-auto mb-4 size-12 text-muted-foreground" />
-            <p className="font-medium">AI Code Review</p>
-            <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-              Background job processing and AI analysis will be connected in
-              the next chapter.
-            </p>
-          </CardContent>
-        </Card>
       )}
     </div>
   );
