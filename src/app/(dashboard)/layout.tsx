@@ -2,7 +2,6 @@ import { auth } from "@/server/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Header } from "@/components/header";
-
 export default async function DashboardLayout({
   children,
 }: {

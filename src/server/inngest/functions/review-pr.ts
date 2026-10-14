@@ -1,6 +1,12 @@
+import { NonRetriableError } from "inngest";
 import { inngest } from "@/server/inngest/client";
 import { db } from "@/server/db";
-import { fetchPullRequestFiles, getGitHubAccessToken } from "@/server/services/github";
+import { reviewCode } from "@/server/services/ai";
+import {
+  fetchPullRequest,
+  fetchPullRequestFiles,
+  getGitHubAccessToken,
+} from "@/server/services/github";
 
 export type ReviewPREvent = {
   name: "review/pull-request.requested";
@@ -13,98 +19,90 @@ export type ReviewPREvent = {
 };
 
 export const reviewPullRequest = inngest.createFunction(
-  { id: "review-pull-request", retries: 2 }, 
+  { id: "review-pull-request", retries: 2 },
   { event: "review/pull-request.requested" },
   async ({ event, step }) => {
-    const { reviewId, repositoryId, prNumber, userId } = event.data;
+  
+    const { reviewId, repositoryId, prNumber, userId } =
+      event.data as ReviewPREvent["data"];
 
-    // Step 1: Update status to PROCESSING
-    await step.run("update-status-to-processing", async () => {
-      await db.review.update({
-        where: { id: reviewId },
-        data: { status: "PROCESSING" },
-      });
-    });
-
-    // Step 2: Fetch Repository
-    const repository = await step.run("get-repository", async () => {
-      return await db.repository.findUnique({
-        where: { id: repositoryId },
-      });
-    });
-
-    if (!repository) {
-      await step.run("mark-failed-no-repo", async () => {
+    try {
+      await step.run("update-status-to-processing", async () => {
         await db.review.update({
           where: { id: reviewId },
-          data: { status: "FAILED", error: "Repository not found" },
+          data: { status: "PROCESSING" },
         });
       });
-      return { success: false, error: "Repository not found" };
-    }
 
-    // Step 3: Fetch GitHub Access Token
-    const accessToken = await step.run("get-access-token", async () => {
-      return await getGitHubAccessToken(userId);
-    });
+      // The access token is fetched inside this step and not returned,
+      // so it doesn't get stored in Inngest's step state.
+      const prData = await step.run("fetch-pr-data", async () => {
+        const repository = await db.repository.findUnique({
+          where: { id: repositoryId, userId },
+        });
+        if (!repository) throw new NonRetriableError("Repository not found");
 
-    if (!accessToken) {
-      await step.run("mark-failed-no-token", async () => {
+        const accessToken = await getGitHubAccessToken(userId);
+        if (!accessToken) {
+          throw new NonRetriableError("GitHub account not connected");
+        }
+
+        const [owner, repo] = repository.fullName.split("/");
+        if (!owner || !repo) {
+          throw new NonRetriableError("Invalid repository full name");
+        }
+
+        const pr = await fetchPullRequest(accessToken, owner, repo, prNumber);
+        const files = await fetchPullRequestFiles(
+          accessToken,
+          owner,
+          repo,
+          prNumber,
+        );
+
+        return {
+          title: pr.title,
+          files: files.map((f) => ({
+            filename: f.filename,
+            status: f.status,
+            additions: f.additions,
+            deletions: f.deletions,
+            patch: f.patch,
+          })),
+        };
+      });
+
+      const reviewResult = await step.run("generate-review", async () => {
+        return reviewCode({
+          prTitle: prData.title,
+          filesChanged: prData.files,
+        });
+      });
+
+      await step.run("save-results", async () => {
         await db.review.update({
           where: { id: reviewId },
-          data: { status: "FAILED", error: "GitHub account not connected" },
-        });
-      });
-      return { success: false, error: "GitHub access token not found" };
-    }
-
-    const [owner, repo] = repository.fullName.split("/");
-    if (!owner || !repo) {
-      await step.run("mark-failed-invalid-repo", async () => {
-        await db.review.update({
-          where: { id: reviewId },
-          data: { status: "FAILED", error: "Invalid repository full name" },
-        });
-      });
-      return { success: false, error: "Invalid repository full name" };
-    }
-
-    // Step 4: Fetch PR Changed Files
-    const files = await step.run("fetch-pr-files", async () => {
-      return await fetchPullRequestFiles(accessToken, owner, repo, prNumber);
-    });
-
-    // Step 5: Generate Review (Mocked in this chapter, replaced with OpenAI in next chapter)
-    const reviewResult = await step.run("generate-review", async () => {
-      return {
-        summary: "Pull request reviewed successfully with placeholder analysis.",
-        riskScore: 25,
-        comments: [
-          {
-            file: files[0]?.filename ?? "README.md",
-            line: 1,
-            severity: "low",
-            category: "style",
-            message: "Consider adding more descriptive documentation comments.",
-            suggestion: "Add inline JSDoc comments explaining function arguments.",
+          data: {
+            status: "COMPLETED",
+            summary: reviewResult.summary,
+            riskScore: reviewResult.riskScore,
+            comments: JSON.parse(JSON.stringify(reviewResult.comments)),
           },
-        ],
-      };
-    });
-
-    // Step 6: Save Results to Database
-    await step.run("save-results", async () => {
-      await db.review.update({
-        where: { id: reviewId },
-        data: {
-          status: "COMPLETED",
-          summary: reviewResult.summary,
-          riskScore: reviewResult.riskScore,
-          comments: reviewResult.comments,
-        },
+        });
       });
-    });
 
-    return { success: true };
-  }
+      return { success: true };
+    } catch (error) {
+      await step.run("mark-failed", async () => {
+        await db.review.update({
+          where: { id: reviewId },
+          data: {
+            status: "FAILED",
+            error: error instanceof Error ? error.message : "Unknown error",
+          },
+        });
+      });
+      throw error;
+    }
+  },
 );
