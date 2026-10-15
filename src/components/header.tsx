@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { FolderGit2, FileCode2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserMenu } from "@/components/user-menu";
+import { ThemeToggle } from "@/components/theme-toggle";
+
 
 interface UserProps {
   id: string;
@@ -54,6 +56,7 @@ export function Header({ user }: HeaderProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <UserMenu user={user} />
         </div>
       </div>

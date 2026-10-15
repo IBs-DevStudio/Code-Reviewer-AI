@@ -90,4 +90,20 @@ export const reviewRouter = createTRPCRouter({
 
       return review;
     }),
+      list: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(100).default(50),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      return await ctx.db.review.findMany({
+        where: { userId: ctx.user.id },
+        orderBy: { createdAt: "desc" },
+        take: input.limit,
+        include: {
+          repository: { select: { fullName: true } },
+        },
+      });
+    }),
 });

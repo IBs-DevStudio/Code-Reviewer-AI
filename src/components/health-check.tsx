@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export function HealthCheck() {
+export function HealthCheck() { 
   const { data, isLoading, error } = trpc.health.useQuery();
 
   if (isLoading) {
