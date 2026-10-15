@@ -249,43 +249,55 @@ function DiffFileCard({
   );
 }
 
-function DiffContent({ patch }: { patch: string }) {
+function processDiffLines(patch: string) {
   const lines = patch.split("\n");
   let oldLineNum = 0;
   let newLineNum = 0;
+
+  return lines.map((line, index) => {
+    const lineInfo = parseLine(line);
+
+    if (lineInfo.isHunk) {
+      const match = line.match(/@@ -(\d+),?\d* \+(\d+),?\d* @@/);
+      if (match?.[1] && match?.[2]) {
+        oldLineNum = parseInt(match[1], 10) - 1;
+        newLineNum = parseInt(match[2], 10) - 1;
+      }
+    } else if (lineInfo.type === "deletion") {
+      oldLineNum++;
+    } else if (lineInfo.type === "addition") {
+      newLineNum++;
+    } else if (lineInfo.type === "context") {
+      oldLineNum++;
+      newLineNum++;
+    }
+
+    return {
+      index,
+      line,
+      lineInfo,
+      oldNum: lineInfo.type === "addition" ? null : oldLineNum,
+      newNum: lineInfo.type === "deletion" ? null : newLineNum,
+    };
+  });
+}
+
+function DiffContent({ patch }: { patch: string }) {
+  const processedLines = processDiffLines(patch);
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-xs font-mono">
         <tbody>
-          {lines.map((line, index) => {
-            const lineInfo = parseLine(line, oldLineNum, newLineNum);
-
-            if (lineInfo.isHunk) {
-              const match = line.match(/@@ -(\d+),?\d* \+(\d+),?\d* @@/);
-              if (match?.[1] && match?.[2]) {
-                oldLineNum = parseInt(match[1], 10) - 1;
-                newLineNum = parseInt(match[2], 10) - 1;
-              }
-            } else if (lineInfo.type === "deletion") {
-              oldLineNum++;
-            } else if (lineInfo.type === "addition") {
-              newLineNum++;
-            } else if (lineInfo.type === "context") {
-              oldLineNum++;
-              newLineNum++;
-            }
-
-            return (
-              <DiffTableRow
-                key={index}
-                line={line}
-                oldNum={lineInfo.type === "addition" ? null : oldLineNum}
-                newNum={lineInfo.type === "deletion" ? null : newLineNum}
-                lineInfo={lineInfo}
-              />
-            );
-          })}
+          {processedLines.map(({ index, line, lineInfo, oldNum, newNum }) => (
+            <DiffTableRow
+              key={index}
+              line={line}
+              oldNum={oldNum}
+              newNum={newNum}
+              lineInfo={lineInfo}
+            />
+          ))}
         </tbody>
       </table>
     </div>
@@ -344,7 +356,7 @@ interface LineInfo {
   isHunk: boolean;
 }
 
-function parseLine(line: string, _oldNum: number, _newNum: number): LineInfo {
+function parseLine(line: string): LineInfo {
   if (line.startsWith("@@")) {
     return { type: "hunk", isHunk: true };
   }

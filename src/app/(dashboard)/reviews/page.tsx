@@ -16,6 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DeleteReviewButton } from "@/components/delete-review-dialog";
 
 type ReviewStatusFilter =
   | "ALL"
@@ -246,23 +247,56 @@ function ReviewCard({
         {/* Action */}
         <div className="flex shrink-0 items-center gap-2">
           {isFailed ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onRetry}
-              disabled={isRetrying}
-            >
-              Retry
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onRetry}
+                disabled={isRetrying}
+              >
+                Retry
+              </Button>
+              <DeleteReviewButton
+                reviewId={review.id}
+                repositoryId={review.repositoryId}
+                prNumber={review.prNumber}
+                status={review.status}
+              />
+            </>
+          ) : isCompleted ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                nativeButton={false}
+                render={<Link href={prLink} />}
+              >
+                View Report
+              </Button>
+              <DeleteReviewButton
+                reviewId={review.id}
+                repositoryId={review.repositoryId}
+                prNumber={review.prNumber}
+                status={review.status}
+              />
+            </>
           ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              nativeButton={false}
-              render={<Link href={prLink} />}
-            >
-              View Report
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                nativeButton={false}
+                render={<Link href={prLink} />}
+              >
+                View
+              </Button>
+              <DeleteReviewButton
+                reviewId={review.id}
+                repositoryId={review.repositoryId}
+                prNumber={review.prNumber}
+                status={review.status}
+              />
+            </>
           )}
         </div>
       </CardContent>

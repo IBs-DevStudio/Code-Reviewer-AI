@@ -5,6 +5,8 @@ import { TRPCProvider } from "@/lib/trpc";
 import { ThemeProvider } from "@/components/theme-provider";
 
 
+import { Toaster } from "@/components/ui/toast";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -36,7 +38,10 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <TRPCProvider>{children}</TRPCProvider>
+          <TRPCProvider>
+            {children}
+            <Toaster />
+          </TRPCProvider>
         </ThemeProvider>
       </body>
     </html>

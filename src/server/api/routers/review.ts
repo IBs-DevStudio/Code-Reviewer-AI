@@ -90,7 +90,7 @@ export const reviewRouter = createTRPCRouter({
 
       return review;
     }),
-      list: protectedProcedure
+  list: protectedProcedure
     .input(
       z.object({
         limit: z.number().min(1).max(100).default(50),
@@ -105,5 +105,86 @@ export const reviewRouter = createTRPCRouter({
           repository: { select: { fullName: true } },
         },
       });
+    }),
+
+  delete: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().min(1, "Review ID is required"),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // 1. Fetch review and verify existence and repository relation
+      const review = await ctx.db.review.findUnique({
+        where: { id: input.id },
+        include: { repository: true },
+      });
+
+      if (!review) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Review not found or has already been deleted",
+        });
+      }
+
+      // 2. Authorization check: review must belong to user or repository owned by user
+      const isReviewOwner = review.userId === ctx.user.id;
+      const isRepoOwner = review.repository.userId === ctx.user.id;
+      if (!isReviewOwner && !isRepoOwner) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You are not authorized to delete this review",
+        });
+      }
+
+      const previousStatus = review.status;
+      let cancellationRequested = false;
+
+      // 3. Request background execution cancellation for active/queued reviews
+      if (previousStatus === "PENDING" || previousStatus === "PROCESSING") {
+        try {
+          await inngest.send({
+            name: "review/pull-request.cancelled",
+            data: {
+              reviewId: review.id,
+              repositoryId: review.repositoryId,
+              prNumber: review.prNumber,
+              userId: ctx.user.id,
+            },
+          });
+          cancellationRequested = true;
+        } catch (err) {
+          // Inngest send failure should not prevent DB deletion, but should be logged
+          console.error("Failed to send Inngest review cancellation event:", err);
+        }
+      }
+
+      // 4. Delete the review within a Prisma transaction
+      await ctx.db.$transaction(async (tx) => {
+        // Re-check existence to handle concurrent deletion attempts safely
+        const toDelete = await tx.review.findUnique({
+          where: { id: input.id },
+        });
+
+        if (!toDelete) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Review has already been deleted",
+          });
+        }
+
+        await tx.review.delete({
+          where: { id: input.id },
+        });
+      });
+
+      return {
+        success: true,
+        reviewId: review.id,
+        repositoryId: review.repositoryId,
+        prNumber: review.prNumber,
+        previousStatus,
+        cancellationRequested,
+      };
     }),
 });

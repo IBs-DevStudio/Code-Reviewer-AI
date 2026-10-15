@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
 import { DiffViewer } from "@/components/diff-viewer";
+import { DeleteReviewButton } from "@/components/delete-review-dialog";
 
 export default function PRDetailsPage({
   params,
@@ -178,6 +179,15 @@ export default function PRDetailsPage({
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
+              {latestReview?.id && (
+                <DeleteReviewButton
+                  reviewId={latestReview.id}
+                  repositoryId={id}
+                  prNumber={num}
+                  status={latestReview.status}
+                />
+              )}
+
               <Button
                 size="sm"
                 disabled={isReviewing || triggerReview.isPending}
@@ -318,7 +328,11 @@ export default function PRDetailsPage({
         <div>
           {latestReview ? (
             <ReviewResult
-              review={latestReview}
+              review={{
+                ...latestReview,
+                repositoryId: id,
+                prNumber: num,
+              }}
               onRetry={runReview}
               isRetrying={triggerReview.isPending}
             />

@@ -63,6 +63,7 @@ export const pullRequestRouter = createTRPCRouter({
           },
         },
         select: {
+          id: true,
           prNumber: true,
           status: true,
           createdAt: true,

@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import { DeleteReviewButton } from "@/components/delete-review-dialog";
+
 interface ReviewComment {
   file: string;
   line: number;
@@ -45,38 +47,53 @@ interface ReviewResultProps {
     comments: ReviewComment[] | unknown;
     error: string | null;
     createdAt: Date;
+    repositoryId?: string;
+    prNumber?: number;
   };
   onRetry?: () => void;
   isRetrying?: boolean;
+  onDeleted?: () => void;
 }
 
 export function ReviewResult({
   review,
   onRetry,
   isRetrying = false,
+  onDeleted,
 }: ReviewResultProps) {
   if (review.status === "PENDING") {
     return (
       <Card>
         <CardContent className="py-12 px-6">
-          <div className="flex items-center gap-4">
-            <div className="size-10 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
-              <Clock className="size-5 text-amber-500" />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="size-10 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
+                <Clock className="size-5 text-amber-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-medium">Queued for review</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  This review is queued for review and will be processed soon.
+                </p>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-medium">Queued for review</h3>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                This review is queued for review and will be processed soon.
-              </p>
-            </div>
-            <div className="flex items-center gap-1">
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="size-1.5 rounded-full bg-amber-500 animate-pulse"
-                  style={{ animationDelay: `${i * 200}ms` }}
-                />
-              ))}
+            <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
+              <div className="flex items-center gap-1">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="size-1.5 rounded-full bg-amber-500 animate-pulse"
+                    style={{ animationDelay: `${i * 200}ms` }}
+                  />
+                ))}
+              </div>
+              <DeleteReviewButton
+                reviewId={review.id}
+                repositoryId={review.repositoryId}
+                prNumber={review.prNumber}
+                status={review.status}
+                onDeleted={onDeleted}
+              />
             </div>
           </div>
         </CardContent>
@@ -88,49 +105,60 @@ export function ReviewResult({
     return (
       <Card>
         <CardContent className="py-12 px-6">
-          <div className="flex items-center gap-4">
-            <div className="relative size-10 shrink-0">
-              <svg className="size-10 -rotate-90" viewBox="0 0 40 40">
-                <circle
-                  cx="20"
-                  cy="20"
-                  r="16"
-                  fill="none"
-                  strokeWidth="3"
-                  className="stroke-muted"
-                />
-                <circle
-                  cx="20"
-                  cy="20"
-                  r="16"
-                  fill="none"
-                  strokeWidth="3"
-                  className="stroke-primary"
-                  style={{
-                    strokeDasharray: "100",
-                    strokeDashoffset: "60",
-                    animation: "spin 1s linear infinite",
-                    transformOrigin: "center",
-                  }}
-                />
-              </svg>
-              <style jsx>{`
-                @keyframes spin {
-                  to {
-                    transform: rotate(360deg);
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="relative size-10 shrink-0">
+                <svg className="size-10 -rotate-90" viewBox="0 0 40 40">
+                  <circle
+                    cx="20"
+                    cy="20"
+                    r="16"
+                    fill="none"
+                    strokeWidth="3"
+                    className="stroke-muted"
+                  />
+                  <circle
+                    cx="20"
+                    cy="20"
+                    r="16"
+                    fill="none"
+                    strokeWidth="3"
+                    className="stroke-primary"
+                    style={{
+                      strokeDasharray: "100",
+                      strokeDashoffset: "60",
+                      animation: "spin 1s linear infinite",
+                      transformOrigin: "center",
+                    }}
+                  />
+                </svg>
+                <style jsx>{`
+                  @keyframes spin {
+                    to {
+                      transform: rotate(360deg);
+                    }
                   }
-                }
-              `}</style>
+                `}</style>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-medium">Analysing code</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Scanning for bugs, security issues, and improvements
+                </p>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-medium">Analysing code</h3>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                Scanning for bugs, security issues, and improvements
-              </p>
+            <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
+              <span className="text-xs text-muted-foreground tabular-nums">
+                ~20s
+              </span>
+              <DeleteReviewButton
+                reviewId={review.id}
+                repositoryId={review.repositoryId}
+                prNumber={review.prNumber}
+                status={review.status}
+                onDeleted={onDeleted}
+              />
             </div>
-            <span className="text-xs text-muted-foreground tabular-nums">
-              ~20s
-            </span>
           </div>
         </CardContent>
       </Card>
@@ -154,26 +182,34 @@ export function ReviewResult({
               <p className="text-sm text-muted-foreground">
                 {review.error || "Please try again later or contact support"}
               </p>
-              {onRetry && (
-                <Button
-                  variant="outline"
-                  className="mt-6"
-                  onClick={onRetry}
-                  disabled={isRetrying}
-                >
-                  {isRetrying ? (
-                    <>
-                      <Loader2 className="mr-2 size-4 animate-spin" />
-                      Retrying...
-                    </>
-                  ) : (
-                    <>
-                      <RotateCcw className="mr-2 size-4" />
-                      Retry Analysis
-                    </>
-                  )}
-                </Button>
-              )}
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                {onRetry && (
+                  <Button
+                    variant="outline"
+                    onClick={onRetry}
+                    disabled={isRetrying}
+                  >
+                    {isRetrying ? (
+                      <>
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                        Retrying...
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="mr-2 size-4" />
+                        Retry Analysis
+                      </>
+                    )}
+                  </Button>
+                )}
+                <DeleteReviewButton
+                  reviewId={review.id}
+                  repositoryId={review.repositoryId}
+                  prNumber={review.prNumber}
+                  status={review.status}
+                  onDeleted={onDeleted}
+                />
+              </div>
             </div>
           </div>
         </CardContent>
@@ -198,6 +234,17 @@ export function ReviewResult({
     <div className="space-y-6">
       <Card className="overflow-hidden">
         <CardContent className="p-6 space-y-6">
+          <div className="flex items-center justify-between pb-2 border-b border-border/60">
+            <h2 className="text-sm font-semibold tracking-tight">Review Report</h2>
+            <DeleteReviewButton
+              reviewId={review.id}
+              repositoryId={review.repositoryId}
+              prNumber={review.prNumber}
+              status={review.status}
+              onDeleted={onDeleted}
+            />
+          </div>
+
           <RiskScoreSection score={review.riskScore ?? 0} />
 
           <div className="h-px bg-border/60" />

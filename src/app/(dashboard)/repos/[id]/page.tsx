@@ -26,6 +26,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn, formatDate } from "@/lib/utils";
+import { DeleteReviewButton } from "@/components/delete-review-dialog";
 
 type PRState = "open" | "closed" | "all";
 
@@ -43,7 +44,7 @@ interface PRItem {
   additions: number;
   deletions: number;
   changedFiles: number;
-  review: { status: string } | null;
+  review: { id?: string; status: string } | null;
 }
 
 export default function RepoDetailsPage({
@@ -337,6 +338,14 @@ function PRCard({
 
         <div className="flex shrink-0 items-center gap-3">
           {pr.review && <ReviewStatusBadge status={pr.review.status} />}
+          {pr.review?.id && (
+            <DeleteReviewButton
+              reviewId={pr.review.id}
+              repositoryId={repositoryId}
+              prNumber={pr.number}
+              status={pr.review.status}
+            />
+          )}
           <Button
             variant={pr.review ? "outline" : "default"}
             size="sm"
