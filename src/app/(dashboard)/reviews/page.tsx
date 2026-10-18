@@ -77,8 +77,8 @@ export default function ReviewsPage() {
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Reviews</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Reviews</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-zinc-400">
             {counts.ALL} total {counts.ALL === 1 ? "review" : "reviews"}{" "}
             recorded
           </p>
@@ -88,26 +88,32 @@ export default function ReviewsPage() {
           size="sm"
           disabled={isFetching}
           onClick={() => void refetch()}
+          className="dark:text-white dark:hover:bg-white/10"
         >
           <RotateCw className={cn("size-4", isFetching && "animate-spin")} />
         </Button>
       </div>
 
       {/* Filter tabs */}
-      <div className="flex w-fit flex-wrap items-center gap-2 rounded-lg bg-muted/50 p-1">
+      <div className="flex w-fit flex-wrap items-center gap-1.5 rounded-xl border border-[#cccccc] dark:border-white/15 bg-white dark:bg-black p-1 shadow-2xs">
         {FILTERS.map((status) => (
           <button
             key={status}
             onClick={() => setStatusFilter(status)}
             className={cn(
-              "flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+              "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors border",
               statusFilter === status
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
+                ? "bg-blue-50 border-blue-200 text-blue-700 font-semibold shadow-xs dark:bg-white/10 dark:border-white/20 dark:text-white dark:shadow-none"
+                : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50 dark:text-zinc-300 dark:hover:text-white dark:hover:bg-white/10",
             )}
           >
             <span>{status.charAt(0) + status.slice(1).toLowerCase()}</span>
-            <span className="text-[10px] tabular-nums text-muted-foreground/70">
+            <span className={cn(
+              "text-[10px] tabular-nums font-mono px-1.5 py-0.2 rounded-full",
+              statusFilter === status
+                ? "bg-blue-100 text-blue-800 dark:bg-white/20 dark:text-white"
+                : "bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400"
+            )}>
               {counts[status]}
             </span>
           </button>
@@ -138,11 +144,11 @@ export default function ReviewsPage() {
           ))}
         </div>
       ) : (
-        <Card>
+        <Card className="border border-[#cccccc] dark:border-white/15 bg-white dark:bg-zinc-950 shadow-xs">
           <CardContent className="py-16 text-center">
-            <FileCode2 className="mx-auto mb-4 size-12 text-muted-foreground/40" />
-            <p className="font-medium">No reviews found</p>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <FileCode2 className="mx-auto mb-4 size-12 text-slate-400 dark:text-zinc-500" />
+            <p className="font-semibold text-slate-800 dark:text-white">No reviews found</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-zinc-400">
               {statusFilter === "ALL"
                 ? "Connect a repository and analyze a pull request to see reviews here."
                 : `No reviews currently marked as ${statusFilter.toLowerCase()}.`}
@@ -182,11 +188,11 @@ function ReviewCard({
   const prLink = `/repos/${review.repositoryId}/pr/${review.prNumber}`;
 
   return (
-    <Card className="transition-colors hover:border-primary/50">
+    <Card className="transition-all hover:border-blue-500/60 dark:hover:border-blue-400/60 bg-white dark:bg-zinc-950 border border-[#cccccc] dark:border-white/15 shadow-xs hover:shadow-md">
       <CardContent className="flex items-center justify-between gap-4 p-4">
         <div className="flex min-w-0 flex-1 items-start gap-4">
           {/* Status icon */}
-          <div className="mt-1 shrink-0 rounded-lg bg-muted p-2">
+          <div className="mt-1 shrink-0 rounded-lg bg-slate-100 dark:bg-zinc-900 p-2">
             {isCompleted ? (
               <CheckCircle2 className="size-4 text-emerald-500" />
             ) : isFailed ? (
@@ -203,7 +209,7 @@ function ReviewCard({
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 href={prLink}
-                className="truncate font-medium transition-colors hover:text-primary"
+                className="truncate font-medium text-slate-900 dark:text-white transition-colors hover:text-blue-600 dark:hover:text-blue-400"
               >
                 {review.repository?.fullName ?? "Repository"} #
                 {review.prNumber}

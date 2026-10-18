@@ -6,7 +6,7 @@ const openrouter = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
   defaultHeaders: {
     "HTTP-Referer": process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
-    "X-Title": "CodeReviewer",
+    "X-Title": "Orynd",
   },
 });
 

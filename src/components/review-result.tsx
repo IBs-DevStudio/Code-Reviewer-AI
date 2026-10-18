@@ -24,6 +24,8 @@ import {
   ShieldX,
   RotateCcw,
   Loader2,
+  Sparkles,
+  MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -372,7 +374,6 @@ function CommentCard({
   comment: ReviewComment;
   index: number;
 }) {
-  const [expanded, setExpanded] = useState(index < 3);
   const [copied, setCopied] = useState(false);
   const CategoryIcon = getCategoryIcon(comment.category);
   const severityConfig = getSeverityStyles(comment.severity);
@@ -388,108 +389,103 @@ function CommentCard({
   const directory = pathParts.join("/");
 
   return (
-    <Card>
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => setExpanded(!expanded)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setExpanded(!expanded);
-          }
-        }}
-        className="w-full text-left cursor-pointer focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring rounded-xl"
-      >
-        <div className="p-4 flex items-start gap-3">
-          <div
-            className={cn(
-              "my-0.5 w-1 h-12 rounded-full shrink-0",
-              severityConfig.bar,
-            )}
-          />
-
-          <div className="flex-1 min-w-0 space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Badge
-                variant={"outline"}
-                className={cn(
-                  "text-[10px] uppercase tracking-wider font-semibold",
-                  severityConfig.badge,
-                )}
-              >
-                {comment.severity}
-              </Badge>
-
-              {comment.category && (
-                <Badge variant={"secondary"} className="gap-1 text-xs">
-                  {React.createElement(CategoryIcon, {
-                    className: "size-3",
-                  })}
-                  {comment.category}
-                </Badge>
-              )}
-
-              <div className="flex-1" />
-
-              {expanded ? (
-                <ChevronDown className="size-4 text-muted-foreground" />
-              ) : (
-                <ChevronRight className="size-4 text-muted-foreground" />
-              )}
-            </div>
-
-            <p
-              className={cn(
-                "text-sm leading-relaxed",
-                !expanded && "line-clamp-2",
-              )}
-            >
-              {comment.message}
-            </p>
-
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                copyLocation();
-              }}
-              onKeyDown={(e) => {
-                e.stopPropagation();
-              }}
-              className="group/file inline-flex items-center gap-2 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <FileCode2 className="size-3.5" />
-              {directory && <span className="opacity-60">{directory}</span>}
-              <span className="font-medium text-foreground ">{fileName}</span>
-              <span className="text-foreground">:</span>
-              <span className="text-primary font-medium">{comment.line}</span>
-              {copied ? (
-                <Check className="size-3.5 text-emerald-500" />
-              ) : (
-                <Copy className="size-3.5 opacity-0 group-hover/file:opacity-100 transition-opacity" />
-              )}
-            </button>
+    <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-zinc-950 p-5 shadow-xs transition-all hover:shadow-md hover:border-blue-200 dark:hover:border-blue-900/50 space-y-4">
+      {/* Header matching Image 2 */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Avatar / Brand Icon */}
+          <div className="size-7 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold shrink-0">
+            <Sparkles className="size-4" />
           </div>
+
+          <span className="font-bold text-sm text-slate-900 dark:text-white">
+            CodeReview AI
+          </span>
+
+          <span className="text-xs text-slate-400 dark:text-zinc-500">
+            2 minutes ago
+          </span>
+
+          <Badge
+            variant={"outline"}
+            className={cn(
+              "text-[10px] uppercase tracking-wider font-semibold",
+              severityConfig.badge,
+            )}
+          >
+            {comment.severity}
+          </Badge>
+
+          {comment.category && (
+            <Badge variant={"secondary"} className="gap-1 text-xs">
+              {React.createElement(CategoryIcon, {
+                className: "size-3",
+              })}
+              {comment.category}
+            </Badge>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/40 px-2.5 py-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400">
+            Suggestion
+          </span>
+          <button
+            type="button"
+            className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+            aria-label="More actions"
+          >
+            <MoreHorizontal className="size-4" />
+          </button>
         </div>
       </div>
 
-      {expanded && comment.suggestion && (
-        <div className="px-4 pb-4">
-          <div className="ml-4 rounded-lg bg-linear-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-1 rounded-md bg-emerald-500/20">
-                <Lightbulb className="size-3.5 text-emerald-500" />
-              </div>
-              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-                Suggested Fix
-              </span>
+      {/* Main Message & Suggestion matching Image 2 */}
+      <div className="space-y-3 text-sm text-slate-700 dark:text-zinc-300 leading-relaxed font-sans">
+        <p className="font-normal text-slate-800 dark:text-zinc-200">
+          {comment.message}
+        </p>
+
+        {comment.suggestion && (
+          <div className="rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/70 dark:bg-zinc-900/50 p-3.5 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400">
+              <Lightbulb className="size-3.5" />
+              <span>Recommended fix</span>
             </div>
-            <p className="text-sm leading-relaxed pl-7">{comment.suggestion}</p>
+            <p className="text-sm text-slate-700 dark:text-zinc-300 leading-relaxed">
+              {comment.suggestion}
+            </p>
           </div>
+        )}
+
+        {/* File and line code reference */}
+        <div className="flex items-center gap-2 pt-0.5">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              copyLocation();
+            }}
+            className="group/file inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-zinc-900 px-2.5 py-1 text-xs font-mono text-slate-600 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+          >
+            <FileCode2 className="size-3.5" />
+            {directory && <span className="opacity-60">{directory}/</span>}
+            <span className="font-semibold text-slate-900 dark:text-white">
+              {fileName}
+            </span>
+            <span className="text-slate-400">:</span>
+            <span className="text-blue-600 dark:text-blue-400 font-bold">
+              {comment.line}
+            </span>
+            {copied ? (
+              <Check className="size-3 text-emerald-500 ml-1" />
+            ) : (
+              <Copy className="size-3 opacity-60 group-hover/file:opacity-100 ml-1 transition-opacity" />
+            )}
+          </button>
         </div>
-      )}
-    </Card>
+      </div>
+    </div>
   );
 }
 
