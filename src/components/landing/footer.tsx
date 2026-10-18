@@ -14,7 +14,7 @@ export function LandingFooter() {
           <div className="md:col-span-5 space-y-4">
               <Image
             
-        src="/orynd-logo.png"
+        src="/brand-4.png"
         alt="Orynd — ship with conviction"
         width={100}
         height={80}

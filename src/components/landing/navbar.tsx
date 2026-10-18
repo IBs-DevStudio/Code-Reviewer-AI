@@ -24,9 +24,9 @@ export function LandingNavbar() {
         {/* Brand Logo & Creator Credit */}
         <div className="flex items-center gap-3">
             <Image
-                  src="/orynd-logo.png"
+                  src="/brand-4.png"
                   alt="Orynd — ship with conviction"
-                  width={160}
+                  width={140}
                   height={106}
                   priority
                   

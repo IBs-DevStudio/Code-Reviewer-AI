@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { FaGithub } from "react-icons/fa";
 import { OryndGlyph } from "@/components/landing/logo";
+import Image from "next/image";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -62,10 +63,17 @@ export default function SignInPage() {
         <CardHeader className="text-center pt-8 pb-4">
           <Link
             href="/"
-            className="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl border border-[#cccccc] dark:border-white/15 bg-blue-50/50 dark:bg-blue-950/40 shadow-xs transition-transform hover:scale-105"
+            className="mx-auto mb-3 flex items-center justify-center "
             aria-label="Orynd Home"
           >
-            <OryndGlyph className="size-8" />
+             <Image
+                          src="/brand-4.png"
+                          alt="Orynd — ship with conviction"
+                          width={140}
+                          height={106}
+                          priority
+                          
+                        />
           </Link>
           <CardTitle className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
             Welcome to Orynd
